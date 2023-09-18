@@ -68,8 +68,8 @@ void OsmVisualizer::initialCallback(const geometry_msgs::msg::PoseWithCovariance
 
 void OsmVisualizer::goalCallback(const geometry_msgs::msg::PoseStamped::SharedPtr t_goal_msg) {
     goal_msg_ = *t_goal_msg;
-    x_d_ = goal_msg_.pose.position.x ;
-    y_d_ = goal_msg_.pose.position.y ;
+    x_d_ = goal_msg_.pose.position.x;
+    y_d_ = goal_msg_.pose.position.y;
     flag2=true;
     count_ ++;
 }
@@ -77,7 +77,6 @@ void OsmVisualizer::goalCallback(const geometry_msgs::msg::PoseStamped::SharedPt
 
 
 void OsmVisualizer::timer_callback(){
-
 
     if(flag2 && flag1){
         std::cout<<"xd:"<<x_d_<<std::endl;
@@ -90,8 +89,11 @@ void OsmVisualizer::timer_callback(){
         lanelet::BasicPoint2d toPoint = {x_d_, y_d_};
 
         // Find the nearest lanelets
-        auto fromCandidates = lanelet::geometry::findNearest(map_->laneletLayer, fromPoint, 1);
-        auto toCandidates = lanelet::geometry::findNearest(map_->laneletLayer, toPoint, 1);
+        //auto fromCandidates = lanelet::geometry::findNearest(map_->laneletLayer, fromPoint, 1);
+        //auto toCandidates = lanelet::geometry::findNearest(map_->laneletLayer, toPoint, 1);
+
+        auto fromCandidates = lanelet::geometry::findNearest(map_->laneletLayer, fromPoint, 100); // Increase the limit to 5 or an appropriate value.
+        auto toCandidates = lanelet::geometry::findNearest(map_->laneletLayer, toPoint, 100);
 
         if (fromCandidates.empty() || toCandidates.empty()) {
             RCLCPP_ERROR(this->get_logger(), "Failed to find nearest lanelets.");
@@ -100,6 +102,8 @@ void OsmVisualizer::timer_callback(){
             lanelet::ConstLanelet fromLanelet = fromCandidates[0].second;
             lanelet::ConstLanelet toLanelet = toCandidates[0].second;
 
+            std::cout << "fromLanelet id: " << fromLanelet.id() << std::endl;
+            std::cout << "toLanelet id: " << toLanelet.id() << std::endl;
             // Continue with finding the shortest path
             lanelet::Optional<lanelet::routing::LaneletPath> shortestPath = routingGraph_->shortestPath(fromLanelet, toLanelet);
 
@@ -111,16 +115,18 @@ void OsmVisualizer::timer_callback(){
                 // Path found, do something with it
                 int spath_size=0;
                 for (const auto& lanelet : *shortestPath) {
-                    geometry_msgs::msg::PoseStamped pose_stamped;
-                    pose_stamped.header.stamp = this->now();
-                    pose_stamped.header.frame_id = "map"; // Assuming waypoints are in the "map" frame
+                    for (const auto& point : lanelet.centerline2d()) {
+                        geometry_msgs::msg::PoseStamped pose_stamped;
+                        pose_stamped.header.stamp = this->now();
+                        pose_stamped.header.frame_id = "map"; // Assuming waypoints are in the "map" frame
 
-                    pose_stamped.pose.position.x = lanelet.centerline2d().front().x();
-                    pose_stamped.pose.position.y = lanelet.centerline2d().front().y();
-                    pose_stamped.pose.orientation.w = 1.0;
+                        pose_stamped.pose.position.x = point.x();
+                        pose_stamped.pose.position.y = point.y();
+                        pose_stamped.pose.orientation.w = 1.0;
 
-                    path_msg.poses.push_back(pose_stamped);
-                    spath_size++;
+                        path_msg.poses.push_back(pose_stamped);
+                        spath_size++;
+                    }
                 }
                 std::cout<<spath_size<<std::endl;
                 // Publish the path
